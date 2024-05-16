@@ -1,7 +1,10 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.20;
 
-contract Counter {
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract Counter is ERC721, Ownable {
 
   uint256 currentCount = 0;
   struct Product {
@@ -13,8 +16,14 @@ contract Counter {
 
   Product[] public products;
   mapping(uint256 => bool) public productExists;
+
+  event ProductCreated(uint256 indexed productId, string name, uint256 price, address owner);
   event ProductPurchased(uint256 indexed productId, address indexed buyer);
   
+  constructor() ERC721("Counter", "CNT") Ownable(msg.sender) {
+        // Pass the deployer's address to the Ownable constructor
+    }
+
   function increment() public {
       currentCount = currentCount + 1;
   }
@@ -27,14 +36,18 @@ contract Counter {
     return currentCount;
   }
 
-  function createProduct(string memory _name, uint256 _price) external {
+  function createProduct(string memory _name, uint256 _price) external onlyOwner {
     products.push(Product(_name, _price, payable(msg.sender),false));
-    productExists[products.length - 1] = true;
+    uint256 newProductId = products.length - 1;
+    _safeMint(msg.sender, newProductId);
+    productExists[newProductId] = true;
+    emit ProductCreated(newProductId, _name, _price, msg.sender);
   }
 
-  function getProduct(uint256 index) external view returns (string memory, uint256) {
+  function getProduct(uint256 index) external view returns (string memory, uint256, address payable, bool) {
       require(index < products.length, "Index out of bounds");
-      return (products[index].name, products[index].price);
+      Product memory product = products[index];
+      return (product.name, product.price, product.owner, product.purchased);
   }
 
   function getProductsCount() external view returns (uint256) {
@@ -44,6 +57,8 @@ contract Counter {
   function getAllProducts() external view returns (Product[] memory) {
     return products;
   }
+
+  
 
   function purchaseProduct(uint256 productId) external payable {
     require(productId < products.length, "Invalid product ID");
@@ -56,5 +71,5 @@ contract Counter {
 
     emit ProductPurchased(productId, msg.sender);
   }
-
+  
 }
